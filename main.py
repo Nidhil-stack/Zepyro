@@ -2,12 +2,14 @@ from components.dht11 import DHT11
 from components.bmp180 import bmp180
 from components.lcd import lcd
 
-from libs.hall_sensor import hallSensor
+from libs.hallSensor import hallSensor
 
 import adc
 import gpio
 import threading
 import time
+
+
 
 def floatToString(value, precision):                                               #convert float to string with given precision
     s = str(value)
@@ -18,29 +20,32 @@ def floatToString(value, precision):                                            
     return s1 + '.' + s2
 
 def measureWindSpeed():
-    global windSpeed                                            #global variable to be able to read it from the main thread
+    global windSpeed
+    i = 0                                      #global variable to be able to read it from the main thread
     oldWind = None
     oldTime = None
-    wind = hallSensor(15)                                       #we define the Hall Effect Sensor on analog pin 15
+    wind = hallSensor.hallSensor(15)                                       #we define the Hall Effect Sensor on analog pin 15
     while True:
-        newWind = wind.read()                                   #read the Hall Effect Sensor
+        try:
+            newWind = wind.read()
+        except Exception as e:
+            print(e)                                   #read the Hall Effect Sensor
         if newWind is None: continue
-        if oldWind is 1 and newWind is 0:                       #we trigger the wind speed measurement on the falling edge of the Hall Effect Sensor
+        if oldWind is 1 and newWind is 0:
+            i = 0
+            # print("ok")                       #we trigger the wind speed measurement on the falling edge of the Hall Effect Sensor
             if oldTime is None:
                 oldTime = time.millis()
             else:
                 newTime = time.millis()
-                windSpeed = 6.28/(newTime - oldTime)            #calculate the wind speed
+                windSpeed = 628/(newTime - oldTime)            #calculate the wind speed
                 oldTime = newTime
         oldWind = newWind
+        i+=1
+        if i > 5000:
+            i = 0
+            windSpeed = 0
         sleep(1)
-
-def getSensorData():
-    try:
-        return DHT11.read(dhtPin), bmp.get_pres()               #try to read the sensors
-    except Exception as e:
-        print(e)                                                #if something goes wrong, print the error and return None
-        return None, None, None
 
 
 dhtPin = D18
@@ -60,7 +65,10 @@ thread(measureWindSpeed)                                            #start the t
 
 # main loop
 while True:
-    temp, hum, pressure = getSensorData()
+
+    hum = 0;
+    temp = bmp.get_temp()                #read the dht11 sensor
+    pressure =  bmp.get_pres()                                             #read the pressure sensor
     #print data in the console
     print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pressure/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
 
@@ -79,7 +87,7 @@ while True:
         oldHum = hum
     if oldWindSpeed is not windSpeed:
         lcd.setCursorPosition(7, 1)
-        lcd.writeString("W: " + str(int(windSpeed)) + "km/h")
+        lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
         oldWindSpeed = windSpeed
 
     sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
