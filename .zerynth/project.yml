@@ -1,0 +1,5 @@
+--- {board: eva_zm1, docs: 'https://docs.zerynth.com/latest/hardware/', name: ZM1
+        Evaluation Board, phys_id: 569b123d630bd86b4f01b15dce61c3796c2f1953, pinmap: 'https://docs.zerynth.com/latest/hardware/',
+    short_name: ZM1-EVA, specs: zf, uid: 569b123d630bd86b4f01b15dce61c3796c2f1953,
+    version: v3.0.12}
+...
