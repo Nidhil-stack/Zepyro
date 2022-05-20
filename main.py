@@ -58,16 +58,18 @@ def measureWindSpeed():
         sleep(5)
 
 def httpSend():
-    httpBuffer = [measureBuffer[i:i+10]
-                  for i in range(0, len(measureBuffer), 10)]
-    measureBuffer.clear()
-    for i in httpBuffer:
-        conn = http.HTTP()
-        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
-        conn.destroy()
+    global measureBuffer
+    #bufferLock.acquire()
+    # bufferLock.release()
+    # connectionLock.acquire()
+    conn = http.HTTP()
+    res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
     if res.data != "OK":
+        print("Error: " + res.data)
         raise Exception("Query Error")
-    httpBuffer.clear()
+    conn.destroy()
+    measureBuffer.clear()
+    # connectionLock.release()
 
 def newMeasure(time, temperature, humidity, pressure, wind_speed):
     new = {
@@ -78,6 +80,59 @@ def newMeasure(time, temperature, humidity, pressure, wind_speed):
     "windspeed": wind_speed
     }
     return new
+
+def main():
+    global measureBuffer
+    global windSpeed
+
+    try:                                                            #try to initialize the bmp180 sensor
+        bmp.init()
+    except Exception as e:                                          #if something goes wrong, print the error
+        bmp = None
+        print(e)
+
+    oldHum, oldTemp, oldPressure, oldWindSpeed = None, None, None, None
+
+    while True:
+
+        hum =40.3;
+        temp = bmp.get_temp()                #read the dht11 sensor
+        pres =  bmp.get_pres()                                             #read the pressure sensor
+        #print data in the console
+        print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pres/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
+
+        #if there is new data, print it on the LCD
+        if oldTemp is not temp:
+            lcd.setCursorPosition(0, 0)
+            lcd.writeString("T: " + floatToString(temp, 1) + "C")
+            oldTemp = temp
+        if oldPressure is not pres:
+            lcd.setCursorPosition(9, 0)
+            lcd.writeString("P: " + floatToString(pres/1000, 1) + "kPa")
+            oldPressure = pres
+        if oldHum is not hum:
+            lcd.setCursorPosition(0, 1)
+            lcd.writeString("H: " + str(int(hum)) + "%")
+            oldHum = hum
+        if oldWindSpeed is not windSpeed:
+            lcd.setCursorPosition(7, 1)
+            lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
+            oldWindSpeed = windSpeed
+        new = newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed)
+        measureBuffer.append(new)
+        print(new)
+        connectionLock.acquire()
+        agent.publish(new, "measurements")
+        connectionLock.release()
+        if len(measureBuffer) > 9:
+            try:
+                httpSend()
+                print("data sent!")
+            except Exception as e:
+                print(e)
+
+        sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
+
 
 #try connecting to the wifi network
 try:
@@ -91,59 +146,21 @@ except Exception as e:
         print("wifi exec",e)
 
 
-dhtPin = D18
-bmp = bmp180.BMP180(I2C0)
-lcd = lcd.LCD(I2C0)
-agent = zdm.Agent()
-agent.start()
-
-try:                                                            #try to initialize the bmp180 sensor
-    bmp.init()
-except Exception as e:                                          #if something goes wrong, print the error and
-    bmp = None
-    print(e)
-
-oldHum, oldTemp, oldPressure, oldWindSpeed = None, None, None, None #initialize variables for the lcd update
 windSpeed = 0                                                       #initialize the wind speed to 0
 measureBuffer = []                                                  #initialize the buffer for the measurements
 
-thread(measureWindSpeed)                                            #start the thread for measuring the wind speed
+# bufferLock = threading.Lock()                                       #lock for the buffer
+# connectionLock = threading.Lock()                                   #lock for the connection
 
-# main loop
-while True:
+windSpeedThread = threading.Thread(target=measureWindSpeed)
+httpThread = threading.Thread(target=httpSend)                                #start the thread for sending the measurements
+mainThread = threading.Thread(target=main)                                    #start the thread for the main loop
 
-    hum =40.3;
-    temp = bmp.get_temp()                #read the dht11 sensor
-    pres =  bmp.get_pres()                                             #read the pressure sensor
-    #print data in the console
-    print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pres/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
+lcd = lcd.LCD(I2C0)
+dhtPin = D18
+bmp = bmp180.BMP180(I2C0)
+agent = zdm.Agent()
+agent.start()
 
-    #if there is new data, print it on the LCD
-    if oldTemp is not temp:
-        lcd.setCursorPosition(0, 0)
-        lcd.writeString("T: " + floatToString(temp, 1) + "C")
-        oldTemp = temp
-    if oldPressure is not pres:
-        lcd.setCursorPosition(9, 0)
-        lcd.writeString("P: " + floatToString(pres/1000, 1) + "kPa")
-        oldPressure = pres
-    if oldHum is not hum:
-        lcd.setCursorPosition(0, 1)
-        lcd.writeString("H: " + str(int(hum)) + "%")
-        oldHum = hum
-    if oldWindSpeed is not windSpeed:
-        lcd.setCursorPosition(7, 1)
-        lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
-        oldWindSpeed = windSpeed
-    new = newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed)
-    measureBuffer.append(new)
-    agent.publish(new, "measurements")
-    if len(measureBuffer) > 9:
-        try:
-            httpSend()
-            print("data sent!")
-            sleep(1000)
-        except Exception as e:
-            print(e)
-
-    sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
+windSpeedThread.start()
+mainThread.start()
