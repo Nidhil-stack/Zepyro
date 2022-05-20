@@ -58,11 +58,16 @@ def measureWindSpeed():
         sleep(5)
 
 def httpSend():
-    conn = http.HTTP()
-    res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
+    httpBuffer = [measureBuffer[i:i+10]
+                  for i in range(0, len(measureBuffer), 10)]
+    measureBuffer.clear()
+    for i in httpBuffer:
+        conn = http.HTTP()
+        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
+        conn.destroy()
     if res.data != "OK":
         raise Exception("Query Error")
-    measureBuffer.clear()
+    httpBuffer.clear()
 
 def newMeasure(time, temperature, humidity, pressure, wind_speed):
     new = {
@@ -107,7 +112,7 @@ thread(measureWindSpeed)                                            #start the t
 # main loop
 while True:
 
-    hum = 0;
+    hum =40.3;
     temp = bmp.get_temp()                #read the dht11 sensor
     pres =  bmp.get_pres()                                             #read the pressure sensor
     #print data in the console
@@ -138,10 +143,6 @@ while True:
             httpSend()
             print("data sent!")
             sleep(1000)
-            mcu.reset()
-        except RuntimeError as e:
-            print(e)
-            mcu.reset()
         except Exception as e:
             print(e)
 
