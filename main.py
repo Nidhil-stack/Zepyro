@@ -1,3 +1,6 @@
+# from bsp import board
+from zdm import zdm
+
 from components.dht11 import DHT11
 from components.bmp180 import bmp180
 
@@ -9,6 +12,7 @@ from networking import wifi
 from libs.lcd import lcd
 from libs.hallSensor import hallSensor
 
+import mcu
 import json
 import adc
 import gpio
@@ -56,8 +60,9 @@ def measureWindSpeed():
 def httpSend():
     conn = http.HTTP()
     res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
+    if res.data != "OK":
+        raise Exception("Query Error")
     measureBuffer.clear()
-    print(res.data)
 
 def newMeasure(time, temperature, humidity, pressure, wind_speed):
     new = {
@@ -84,6 +89,8 @@ except Exception as e:
 dhtPin = D18
 bmp = bmp180.BMP180(I2C0)
 lcd = lcd.LCD(I2C0)
+agent = zdm.Agent()
+agent.start()
 
 try:                                                            #try to initialize the bmp180 sensor
     bmp.init()
@@ -123,11 +130,19 @@ while True:
         lcd.setCursorPosition(7, 1)
         lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
         oldWindSpeed = windSpeed
-
-    measureBuffer.append(newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed))
+    new = newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed)
+    measureBuffer.append(new)
+    agent.publish(new, "measurements")
     if len(measureBuffer) > 9:
         try:
             httpSend()
+            print("data sent!")
+            sleep(1000)
+            mcu.reset()
+        except RuntimeError as e:
+            print(e)
+            mcu.reset()
         except Exception as e:
             print(e)
+
     sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
