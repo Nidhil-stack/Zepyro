@@ -1,12 +1,12 @@
 from components.dht11 import DHT11
 from components.bmp180 import bmp180
-from components.lcd import lcd
 
 from protocols import ntp
 from protocols import http
 
 from networking import wifi
 
+from libs.lcd import lcd
 from libs.hallSensor import hallSensor
 
 import json
@@ -75,11 +75,11 @@ try:
         ssid = "Nick",
         password="ciao1234")
     wifi.start()
+    ntp.sync_time()
     print(wifi.info())
 except Exception as e:
         print("wifi exec",e)
 
-ntp.sync_time()
 
 dhtPin = D18
 bmp = bmp180.BMP180(I2C0)
@@ -126,5 +126,8 @@ while True:
 
     measureBuffer.append(newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed))
     if len(measureBuffer) > 9:
-        httpSend()
+        try:
+            httpSend()
+        except Exception as e:
+            print(e)
     sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor

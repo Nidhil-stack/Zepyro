@@ -1,5 +1,12 @@
---- {board: eva_zm1, docs: 'https://docs.zerynth.com/latest/hardware/', name: ZM1
-        Evaluation Board, phys_id: 569b123d630bd86b4f01b15dce61c3796c2f1953, pinmap: 'https://docs.zerynth.com/latest/hardware/',
-    short_name: ZM1-EVA, specs: zf, uid: 569b123d630bd86b4f01b15dce61c3796c2f1953,
-    version: v3.0.12}
+---
+board: eva_zm1
+docs: https://docs.zerynth.com/latest/hardware/
+name: ZM1 Evaluation Board
+phys_id: 569b123d630bd86b4f01b15dce61c3796c2f1953
+pinmap: https://docs.zerynth.com/latest/hardware/
+short_name: ZM1-EVA
+specs: zf
+uid: 569b123d630bd86b4f01b15dce61c3796c2f1953
+version: v3.0.12
+zdm: {device_id: dev-6xu882qjr2fc, fleet_id: flt-6rm6al86et4w, workspace_id: wks-6rm6al7yx43j}
 ...
