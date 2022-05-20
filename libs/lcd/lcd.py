@@ -56,7 +56,7 @@ LCD_MODE_RS = 0x01
 
 class LCD(i2c.I2c):
     """
-.. class:: LCD(i2cdrv, addr=LCD_I2CADDR, clk=400000)
+    .. class:: LCD(i2cdrv, addr=LCD_I2CADDR, clk=400000)
 
     Creates an intance of a new LCD1602.
 
@@ -74,7 +74,6 @@ class LCD(i2c.I2c):
         lcd.writeString("Hello World!")
     """
 
-    #Init
     def __init__(self, drvname, addr=LCD_I2CADDR, clk=400000):
         i2c.I2c.__init__(self, addr, drvname, clk)                                                          #initialize the I2C bus
         self._addr = addr                                                                                   #save the address

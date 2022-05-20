@@ -1,4 +1,4 @@
-# from bsp import board
+from bsp import board
 from zdm import zdm
 
 from components.dht11 import DHT11
