@@ -29,6 +29,16 @@ def floatToString(value, precision):                                            
     s2 = s2[:precision]
     return s1 + '.' + s2
 
+def newMeasure(time, temperature, humidity, pressure, wind_speed):
+    new = {
+    "time": time,
+    "temp": temperature,
+    "hum": humidity,
+    "pres": pressure,
+    "windspeed": wind_speed
+    }
+    return new
+
 def measureWindSpeed():
     global windSpeed
     i = 0                                      #global variable to be able to read it from the main thread
@@ -59,27 +69,26 @@ def measureWindSpeed():
 
 def httpSend():
     global measureBuffer
-    #bufferLock.acquire()
-    # bufferLock.release()
+    while True:
+        sleep(5000)
+        bufferLock.acquire()
+        if len(measureBuffer) < 10:
+            bufferLock.release()
+            continue
+        httpBuffer=measureBuffer
+        measureBuffer.clear()
+        bufferLock.release()
     # connectionLock.acquire()
-    conn = http.HTTP()
-    res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
-    if res.data != "OK":
-        print("Error: " + res.data)
-        raise Exception("Query Error")
-    conn.destroy()
-    measureBuffer.clear()
+        conn = http.HTTP()
+        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(httpBuffer))
+        print("Sent")
+        if res.data != "OK":
+            print("Error: " + res.data)
+            raise Exception("Query Error")
+        conn.destroy()
+        httpBuffer.clear()
     # connectionLock.release()
 
-def newMeasure(time, temperature, humidity, pressure, wind_speed):
-    new = {
-    "time": time,
-    "temp": temperature,
-    "hum": humidity,
-    "pres": pressure,
-    "windspeed": wind_speed
-    }
-    return new
 
 def main():
     global measureBuffer
@@ -99,7 +108,7 @@ def main():
         temp = bmp.get_temp()                #read the dht11 sensor
         pres =  bmp.get_pres()                                             #read the pressure sensor
         #print data in the console
-        print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pres/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
+        print("Temp:" + floatToString(temp, 1) + "C" + " Hum:" + floatToString(hum, 1) + "%" + " Pressure:" + floatToString(pres/1000, 1) + "kPa" + " WindSpeed:" + floatToString(windSpeed, 1) + "m/s")
 
         #if there is new data, print it on the LCD
         if oldTemp is not temp:
@@ -119,18 +128,10 @@ def main():
             lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
             oldWindSpeed = windSpeed
         new = newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed)
+        bufferLock.acquire()
         measureBuffer.append(new)
-        print(new)
-        connectionLock.acquire()
+        bufferLock.release()
         agent.publish(new, "measurements")
-        connectionLock.release()
-        if len(measureBuffer) > 9:
-            try:
-                httpSend()
-                print("data sent!")
-            except Exception as e:
-                print(e)
-
         sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
 
 
@@ -149,8 +150,7 @@ except Exception as e:
 windSpeed = 0                                                       #initialize the wind speed to 0
 measureBuffer = []                                                  #initialize the buffer for the measurements
 
-# bufferLock = threading.Lock()                                       #lock for the buffer
-# connectionLock = threading.Lock()                                   #lock for the connection
+bufferLock = threading.Lock()
 
 windSpeedThread = threading.Thread(target=measureWindSpeed)
 httpThread = threading.Thread(target=httpSend)                                #start the thread for sending the measurements
@@ -164,3 +164,4 @@ agent.start()
 
 windSpeedThread.start()
 mainThread.start()
+httpThread.start()
