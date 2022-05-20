@@ -21,7 +21,7 @@ import time
 
 
 
-def floatToString(value, precision):                                               #convert float to string with given precision
+def floatToString(value, precision):                                                                        #convert float to string with given precision
     s = str(value)
     i = s.find('.')
     s1 = s[:i]
@@ -29,36 +29,30 @@ def floatToString(value, precision):                                            
     s2 = s2[:precision]
     return s1 + '.' + s2
 
-def newMeasure(time, temperature, humidity, pressure, wind_speed):
-    new = {
-    "time": time,
-    "temp": temperature,
-    "hum": humidity,
-    "pres": pressure,
-    "windspeed": wind_speed
-    }
-    return new
-
 def measureWindSpeed():
     global windSpeed
-    i = 0                                      #global variable to be able to read it from the main thread
-    oldWind = None
+    i = 0
+    oldWind = None                                                                                          #variable to store the last read value
     oldTime = None
-    wind = hallSensor.hallSensor(33)                                       #we define the Hall Effect Sensor on analog pin 15
+    wind = hallSensor.hallSensor(33)
     while True:
         try:
             newWind = wind.read()
         except Exception as e:
-            print(e)                                   #read the Hall Effect Sensor
+            print(e)
+
         if newWind is None: continue
-        if oldWind is 1 and newWind is 0:
+
+        if oldWind is 1 and newWind is 0:                                                                   #trigger the measurement on falling edge
             i = 0
-            # print("ok")                       #we trigger the wind speed measurement on the falling edge of the Hall Effect Sensor
+            # print("ok")
             if oldTime is None:
                 oldTime = time.millis()
             else:
                 newTime = time.millis()
-                windSpeed = 628/(newTime - oldTime)            #calculate the wind speed
+                windLock.acquire()
+                windSpeed = 628/(newTime - oldTime)                                                         #calculate the wind speed using a lock for thread safety
+                windLock.release()
                 oldTime = newTime
         oldWind = newWind
         i+=1
@@ -71,31 +65,29 @@ def httpSend():
     global measureBuffer
     while True:
         sleep(500)
-        bufferLock.acquire()
+        bufferLock.acquire()                                                                                #lock the buffer for thread safety
         if len(measureBuffer) < 10:
             bufferLock.release()
             continue
-        httpBuffer=measureBuffer
+        httpBuffer=measureBuffer                                                                            #copy the buffer to a local variable
         measureBuffer.clear()
-        bufferLock.release()
-    # connectionLock.acquire()
-        conn = http.HTTP()
-        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(httpBuffer))
+        bufferLock.release()                                                                                #unlock the buffer after clearing it
+        conn = http.HTTP()                                                                                  #create a new HTTP connection
+        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(httpBuffer))                #send the data to the server
         print("Sent")
-        if res.data != "OK":
+        if res.data != "OK":                                                                                #if the server returns an error, print it
             print("Error: " + res.data)
             raise Exception("Query Error")
-        conn.destroy()
-        httpBuffer.clear()
-    # connectionLock.release()
+        conn.destroy()                                                                                      #destroy the connection
+        httpBuffer.clear()                                                                                  #clear the copy buffer
 
 def main():
     global measureBuffer
     global windSpeed
 
-    try:                                                            #try to initialize the bmp180 sensor
+    try:                                                                                                    #try to initialize the bmp180 sensor
         bmp.init()
-    except Exception as e:                                          #if something goes wrong, print the error
+    except Exception as e:                                                                                  #if something goes wrong, print the error
         bmp = None
         print(e)
 
@@ -104,10 +96,15 @@ def main():
     while True:
 
         hum =40.3;
-        temp = bmp.get_temp()                #read the dht11 sensor
-        pres =  bmp.get_pres()                                             #read the pressure sensor
-        #print data in the console
-        print("Temp:" + floatToString(temp, 1) + "C" + " Hum:" + floatToString(hum, 1) + "%" + " Pressure:" + floatToString(pres/1000, 1) + "kPa" + " WindSpeed:" + floatToString(windSpeed, 1) + "m/s")
+        temp = bmp.get_temp()                                                                               #read the dht11 sensor
+        pres =  bmp.get_pres()                                                                              #read the pressure sensor
+
+        windLock.acquire()
+        wind_speed = windSpeed
+        windLock.release()
+
+        #print data to the console
+        print("Temp:" + floatToString(temp, 1) + "C" + " Hum:" + floatToString(hum, 1) + "%" + " Pressure:" + floatToString(pres/1000, 1) + "kPa" + " WindSpeed:" + floatToString(wind_speed, 1) + "m/s")
 
         #if there is new data, print it on the LCD
         if oldTemp is not temp:
@@ -122,45 +119,60 @@ def main():
             lcd.setCursorPosition(0, 1)
             lcd.writeString("H: " + str(int(hum)) + "%")
             oldHum = hum
-        if oldWindSpeed is not windSpeed:
+        if oldWindSpeed is not wind_speed:
             lcd.setCursorPosition(7, 1)
-            lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
-            oldWindSpeed = windSpeed
-        new = newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed)
+            lcd.writeString("W: " + floatToString(wind_speed, 1) + "m/s")
+            oldWindSpeed = wind_speed
+
+        new = {"temp": temp, "hum": hum, "pres": pres, "windspeed": wind_speed}
+
         bufferLock.acquire()
         measureBuffer.append(new)
         bufferLock.release()
-        agent.publish(new, "measurements")
-        sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
+
+        try:
+            agent.publish(new, "measurements")
+        except Exception as e:
+            print(e)
+
+        sleep(2000)                                                                                             #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
 
 
-#try connecting to the wifi network
-try:
+
+
+########################################################################################################################this code runs at the start of the program########################################################################################################################
+
+try:                                                                                                            #try connecting to the wifi network
     wifi.configure(
         ssid = "Nick",
         password="ciao1234")
     wifi.start()
     ntp.sync_time()
-    print(wifi.info())
-except Exception as e:
+    print(wifi.info())                                                                                          #print the wifi info
+except Exception as e:                                                                                          #if something goes wrong, print the error
         print("wifi exec",e)
 
 
-windSpeed = 0                                                       #initialize the wind speed to 0
-measureBuffer = []                                                  #initialize the buffer for the measurements
+windSpeed = 0                                                                                                   #initialize the wind speed to 0
+measureBuffer = []                                                                                              #initialize the buffer for the measurements
 
 bufferLock = threading.Lock()
+windLock = threading.Lock()
 
-windSpeedThread = threading.Thread(target=measureWindSpeed)
-httpThread = threading.Thread(target=httpSend)                                #start the thread for sending the measurements
-mainThread = threading.Thread(target=main)                                    #start the thread for the main loop
+windSpeedThread = threading.Thread(target=measureWindSpeed)                                                     #create a thread to measure the wind speed
+httpThread = threading.Thread(target=httpSend)                                                                  #create a thread to send the measurements to the server
+mainThread = threading.Thread(target=main)                                                                      #create a thread for the main function
 
 lcd = lcd.LCD(I2C0)
 dhtPin = D18
 bmp = bmp180.BMP180(I2C0)
 agent = zdm.Agent()
-agent.start()
 
-windSpeedThread.start()
+try:                                                                                                            #try to establish a connection to ZDM
+    agent.start()
+except Exception as e:
+    print(e)
+
+windSpeedThread.start()                                                                                         #start all the threads
 mainThread.start()
 httpThread.start()
