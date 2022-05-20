@@ -72,12 +72,14 @@ def httpSend():
         httpBuffer=measureBuffer                                                                            #copy the buffer to a local variable
         measureBuffer.clear()
         bufferLock.release()                                                                                #unlock the buffer after clearing it
-        conn = http.HTTP()                                                                                  #create a new HTTP connection
-        res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(httpBuffer))                #send the data to the server
-        print("Sent")
+        try:
+            conn = http.HTTP()                                                                              #create a new HTTP connection
+            res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(httpBuffer))            #send the data to the server
+            print("Sent")
+        except Exception as e:
+            print(e)
         if res.data != "OK":                                                                                #if the server returns an error, print it
             print("Error: " + res.data)
-            raise Exception("Query Error")
         conn.destroy()                                                                                      #destroy the connection
         httpBuffer.clear()                                                                                  #clear the copy buffer
 
