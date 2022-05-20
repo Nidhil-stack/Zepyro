@@ -70,7 +70,7 @@ def measureWindSpeed():
 def httpSend():
     global measureBuffer
     while True:
-        sleep(5000)
+        sleep(500)
         bufferLock.acquire()
         if len(measureBuffer) < 10:
             bufferLock.release()
@@ -88,7 +88,6 @@ def httpSend():
         conn.destroy()
         httpBuffer.clear()
     # connectionLock.release()
-
 
 def main():
     global measureBuffer
