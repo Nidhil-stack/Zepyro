@@ -2,8 +2,14 @@ from components.dht11 import DHT11
 from components.bmp180 import bmp180
 from components.lcd import lcd
 
+from protocols import ntp
+from protocols import http
+
+from networking import wifi
+
 from libs.hallSensor import hallSensor
 
+import json
 import adc
 import gpio
 import threading
@@ -24,7 +30,7 @@ def measureWindSpeed():
     i = 0                                      #global variable to be able to read it from the main thread
     oldWind = None
     oldTime = None
-    wind = hallSensor.hallSensor(15)                                       #we define the Hall Effect Sensor on analog pin 15
+    wind = hallSensor.hallSensor(33)                                       #we define the Hall Effect Sensor on analog pin 15
     while True:
         try:
             newWind = wind.read()
@@ -45,8 +51,35 @@ def measureWindSpeed():
         if i > 5000:
             i = 0
             windSpeed = 0
-        sleep(1)
+        sleep(5)
 
+def httpSend():
+    conn = http.HTTP()
+    res = conn.post("http://192.168.108.54/post/index.php", body=json.dumps(measureBuffer))
+    measureBuffer.clear()
+    print(res.data)
+
+def newMeasure(time, temperature, humidity, pressure, wind_speed):
+    new = {
+    "time": time,
+    "temp": temperature,
+    "hum": humidity,
+    "pres": pressure,
+    "windspeed": wind_speed
+    }
+    return new
+
+#try connecting to the wifi network
+try:
+    wifi.configure(
+        ssid = "Nick",
+        password="ciao1234")
+    wifi.start()
+    print(wifi.info())
+except Exception as e:
+        print("wifi exec",e)
+
+ntp.sync_time()
 
 dhtPin = D18
 bmp = bmp180.BMP180(I2C0)
@@ -60,6 +93,7 @@ except Exception as e:                                          #if something go
 
 oldHum, oldTemp, oldPressure, oldWindSpeed = None, None, None, None #initialize variables for the lcd update
 windSpeed = 0                                                       #initialize the wind speed to 0
+measureBuffer = []                                                  #initialize the buffer for the measurements
 
 thread(measureWindSpeed)                                            #start the thread for measuring the wind speed
 
@@ -68,19 +102,19 @@ while True:
 
     hum = 0;
     temp = bmp.get_temp()                #read the dht11 sensor
-    pressure =  bmp.get_pres()                                             #read the pressure sensor
+    pres =  bmp.get_pres()                                             #read the pressure sensor
     #print data in the console
-    print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pressure/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
+    print("Temp: " + floatToString(temp, 1) + "C" + " Hum: " + floatToString(hum, 1) + "%" + " Pressure: " + floatToString(pres/1000, 1) + "kPa" + " WindSpeed: " + floatToString(windSpeed, 1) + "m/s")
 
     #if there is new data, print it on the LCD
     if oldTemp is not temp:
         lcd.setCursorPosition(0, 0)
         lcd.writeString("T: " + floatToString(temp, 1) + "C")
         oldTemp = temp
-    if oldPressure is not pressure:
+    if oldPressure is not pres:
         lcd.setCursorPosition(9, 0)
-        lcd.writeString("P: " + floatToString(pressure/1000, 1) + "kPa")
-        oldPressure = pressure
+        lcd.writeString("P: " + floatToString(pres/1000, 1) + "kPa")
+        oldPressure = pres
     if oldHum is not hum:
         lcd.setCursorPosition(0, 1)
         lcd.writeString("H: " + str(int(hum)) + "%")
@@ -90,4 +124,7 @@ while True:
         lcd.writeString("W: " + floatToString(windSpeed, 1) + "m/s")
         oldWindSpeed = windSpeed
 
+    measureBuffer.append(newMeasure(ntp.get_time(unix_timestamp=True), temp, hum, pres, windSpeed))
+    if len(measureBuffer) > 9:
+        httpSend()
     sleep(2000)                                                #DHT readings are pretty slow, so we wait a bit to avoid overloading the sensor
