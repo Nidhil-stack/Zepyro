@@ -1,13 +1,13 @@
 {
     "python.terminal.activateEnvironment": false,
-    "python.pythonPath": "C:/Users/armad/zerynth3/dist/sys/python/python.exe",
-    "python.linting.pylintPath": "C:/Users/armad/zerynth3/dist/sys/python/Scripts/pylint.exe",
+    "python.pythonPath": "C:/Users/snake/zerynth3/dist/sys/python/python.exe",
+    "python.linting.pylintPath": "C:/Users/snake/zerynth3/dist/sys/python/Scripts/pylint.exe",
     "python.autoComplete.extraPaths": [
-        "C:/Users/armad/zerynth3/dist/libs",
-        "C:/Users/armad/zerynth3/dist/libs/stdlib"
+        "C:/Users/snake/zerynth3/dist/libs",
+        "C:/Users/snake/zerynth3/dist/libs/stdlib"
     ],
     "python.linting.pylintArgs": [
-        "--rcfile=C:/Users/armad/zerynth3/dist/toolchain/linter/zlintrc"
+        "--rcfile=C:/Users/snake/zerynth3/dist/toolchain/linter/zlintrc"
     ],
     "python.languageServer": "Jedi",
     "python.linting.pylintEnabled": true,
