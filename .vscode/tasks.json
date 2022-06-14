@@ -8,14 +8,14 @@
                 "kind": "test",
                 "isDefault": true
             },
-            "command": "C:/Users/snake/zerynth3/dist/sys/python/python.exe",
+            "command": "C:/Users/armad/zerynth3/dist/sys/python/python.exe",
             "args": [
                 "-I",
                 "-u",
-                "C:/Users/snake/zerynth3/dist/toolchain/ztc.py",
+                "C:/Users/armad/zerynth3/dist/toolchain/ztc.py",
                 "device",
                 "console",
-                "d:\\VSCode\\zepyro\\zepyro"
+                "c:\\Users\\armad\\OneDrive\\Documenti\\GitHub\\Zepyro"
             ],
             "presentation": {
                 "echo": true,
