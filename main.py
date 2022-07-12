@@ -1,7 +1,7 @@
 from bsp import board
 from zdm import zdm
 
-from components.dht11 import DHT11
+from components.dht11 import dht11
 from components.bmp180 import bmp180
 
 from protocols import ntp
@@ -97,9 +97,9 @@ def main():
 
     while True:
 
-        hum =40.3;
-        temp = bmp.get_temp()                                                                               #read the dht11 sensor
-        pres =  bmp.get_pres()                                                                              #read the pressure sensor
+        hum, temp = dht11.read(dhtPin)                                                                      #read the humidity and temperature from the DHT11 sensor
+        # temp = bmp.get_temp()
+        pres =  bmp.get_pres()                                                                              #read the pressure from the BMP180 sensor
 
         windLock.acquire()
         wind_speed = windSpeed
@@ -128,7 +128,6 @@ def main():
 
         new = {"temp": temp, "hum": hum, "pres": pres, "windspeed": wind_speed}
 
-        bufferLock.acquire()
         measureBuffer.append(new)
         bufferLock.release()
 
@@ -143,14 +142,15 @@ def main():
 
 
 ########################################################################################################################this code runs at the start of the program########################################################################################################################
-
+isWifiConnected = False
 try:                                                                                                            #try connecting to the wifi network
     wifi.configure(
-        ssid = "Nick",
-        password="ciao1234")
+        ssid = "",
+        password="")
     wifi.start()
     ntp.sync_time()
     print(wifi.info())                                                                                          #print the wifi info
+    isWifiConnected = True
 except Exception as e:                                                                                          #if something goes wrong, print the error
         print("wifi exec",e)
 
@@ -168,12 +168,15 @@ mainThread = threading.Thread(target=main)                                      
 lcd = lcd.LCD(I2C0)
 dhtPin = D18
 bmp = bmp180.BMP180(I2C0)
-agent = zdm.Agent()
 
-try:                                                                                                            #try to establish a connection to ZDM
-    agent.start()
-except Exception as e:
-    print(e)
+if isWifiConnected:
+    agent = zdm.Agent()
+    try:                                                                                                            #try to establish a connection to ZDM
+        agent.start()
+    except Exception as e:
+        print(e)
+else:
+    print("Wifi not connected, agent not started")
 
 windSpeedThread.start()                                                                                         #start all the threads
 mainThread.start()
